@@ -1,0 +1,18 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+
+# Uploads (optional)
+uploads/
+
+# PM2 logs
+logs/
+.env
+.env
+.env
+dump.rdb
+node_modules/
