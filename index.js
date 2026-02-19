@@ -25,7 +25,7 @@ app.use(helmet());
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://vibra-kzox.onrender.com",
+    "https://vibra-frontend-g7oo.onrender.com",
   ],
   credentials: true,
 }));
