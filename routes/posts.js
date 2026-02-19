@@ -1,56 +1,62 @@
-const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const auth = require('../middleware/authMiddleware');
-const Post = require('../models/Post');
+import express from "express";
+import multer from "multer";
+import { protect } from "../middleware/auth.js";
+import Post from "../models/Post.js";
 
-// Image upload setup
+const router = express.Router();
+
+// Multer storage for image uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
   },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
 });
+
 const upload = multer({ storage });
 
-// Create post
-router.post('/', auth, upload.single('image'), async (req, res) => {
+// Create a post
+router.post("/", protect, upload.single("image"), async (req, res) => {
   try {
     const post = new Post({
-      user: req.user.id,
+      user: req.user._id,
       text: req.body.text,
-      image: req.file?.path
+      image: req.file?.path,
     });
     await post.save();
     res.json(post);
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Get all posts
-router.get('/', auth, async (req, res) => {
+router.get("/", protect, async (req, res) => {
   try {
-    const posts = await Post.find().populate('user', 'username').sort({ createdAt: -1 });
+    const posts = await Post.find().populate("user", "name email");
     res.json(posts);
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Like a post
-router.put('/like/:id', auth, async (req, res) => {
+router.put("/like/:id", protect, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post.likes.includes(req.user.id)) post.likes.push(req.user.id);
+    if (!post.likes.includes(req.user._id)) {
+      post.likes.push(req.user._id);
+    }
     await post.save();
     res.json(post);
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-module.exports = router;
-
+export default router;

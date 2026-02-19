@@ -1,36 +1,36 @@
 import multer from "multer";
 import path from "path";
-import fs from "fs";
 
-const uploadPath = "uploads";
-
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
-}
-
+// Storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // make sure this folder exists
   },
-  filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueName + path.extname(file.originalname));
+  filename: function (req, file, cb) {
+    cb(
+      null,
+      Date.now() + "-" + file.originalname.replace(/\s+/g, "_")
+    );
   },
 });
 
+// File filter to allow only images and videos
 const fileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
-  if (!allowed.includes(file.mimetype)) {
-    return cb(new Error("Invalid file type"), false);
+  const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi/;
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error("Only images and videos are allowed"));
   }
-  cb(null, true);
 };
 
 export const upload = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-  },
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
 });
