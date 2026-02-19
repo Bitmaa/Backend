@@ -1,5 +1,3 @@
-// index.js — Phase 7 Production Ready with Redis
-
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -18,30 +16,21 @@ import adminRoutes from "./routes/admin.js";
 import { protect } from "./middleware/auth.js";
 import { socketAuth } from "./middleware/socketAuth.js";
 import Media from "./models/Media.js";
-import redis from "./config/redis.js";
-import { createAdapter } from "@socket.io/redis-adapter";
 
 dotenv.config();
 const app = express();
 
-// Middlewares
+// -------------------- Middlewares --------------------
 app.use(helmet());
-
-// ✅ Fix CORS for frontend and local dev
 app.use(cors({
   origin: [
-    "http://localhost:3000",                       // for local dev
-    "https://vibra-kzox.onrender.com",            // your deployed frontend
+    "http://localhost:3000",
+    "https://vibra-kzox.onrender.com",
   ],
   credentials: true,
 }));
-
 app.use(express.json());
 app.use(compression());
-
-// Your routes come after this
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
 
 // Global API rate limiter
 const apiLimiter = rateLimit({
@@ -53,7 +42,11 @@ const apiLimiter = rateLimit({
 app.use(apiLimiter);
 app.use("/uploads", express.static("uploads"));
 
-// -------------------- Basic Routes for Testing ----
+// -------------------- Routes --------------------
+app.use("/api/auth", authRoutes);
+app.use("/api/media", mediaRoutes);
+app.use("/api/admin", adminRoutes);
+
 app.get("/", (req, res) => {
   res.send("Backend running 🚀");
 });
@@ -62,65 +55,44 @@ app.get("/api/test", (req, res) => {
   res.json({ message: "API test successful ✅" });
 });
 
-// -------------------- Health Route ----------------
+// Health check route
 app.get("/health", async (req, res) => {
-  const mongoStatus = mongoose.connection.readyState === 1 ? "ok" : "error";
-  let redisStatus = "ok";
-  try {
-    await redis.ping();
-  } catch (err) {
-    redisStatus = "error";
-  }
-
+  const mongoStatus = mongoose.connection.readyState;
   res.json({
     status: "ok",
     mongo: mongoStatus,
-    redis: redisStatus,
+    redis: "skipped",
     uptime: process.uptime(),
     timestamp: new Date(),
   });
 });
 
-// -------------------- Routes -------------------
-app.use("/api/auth", authRoutes);
-app.use("/api/media", mediaRoutes);
-app.use("/api/admin", adminRoutes);
-
-// -------------------- Test Protected Route ----
+// Protected test route
 app.get("/api/protected", protect, (req, res) => {
   res.json({ message: "Access granted", user: req.user });
 });
 
-// -------------------- HTTP + Socket.IO Setup -->
+// -------------------- HTTP + Socket.IO --------------------
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
-
-// Redis adapter for Socket.IO scaling
-const pubClient = redis;
-const subClient = redis.duplicate();
-io.adapter(createAdapter(pubClient, subClient));
 
 // Socket.IO authentication middleware
 io.use(socketAuth);
 
-// -------------------- Socket Spam Shield ------>
+// Socket spam limiter
 const socketRateMap = new Map();
-
 const socketLimiter = (socket, limit = 15, windowMs = 60000) => {
   const key = socket.user.id;
   const now = Date.now();
-
   if (!socketRateMap.has(key)) socketRateMap.set(key, []);
   const timestamps = socketRateMap.get(key).filter(ts => now - ts < windowMs);
-
   if (timestamps.length >= limit) return false;
-
   timestamps.push(now);
   socketRateMap.set(key, timestamps);
   return true;
 };
 
-// -------------------- Socket.IO Events -------->
+// Socket.IO events
 io.on("connection", (socket) => {
   console.log("🔌 Socket connected:", socket.user.id);
 
@@ -137,7 +109,6 @@ io.on("connection", (socket) => {
         likes: [],
         comments: [],
       });
-
       console.log("📸 Media saved:", saved._id);
       io.emit("mediaUpdate", saved);
     } catch (err) {
@@ -154,7 +125,7 @@ io.on("connection", (socket) => {
       if (!media.likes.includes(socket.user.id)) {
         media.likes.push(socket.user.id);
         await media.save();
-        io.emit("mediaLiked", { mediaId, likes: media.likes });
+        io.emit("mediaLiked", { mediaId, likes: media.likes.length });
       }
     } catch (err) {
       console.error("❌ Like error:", err.message);
@@ -181,14 +152,12 @@ io.on("connection", (socket) => {
   });
 });
 
-// -------------------- MongoDB + Server -------->
+// -------------------- MongoDB + Server --------------------
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
     const PORT = process.env.PORT || 9000;
-    server.listen(PORT, "0.0.0.0", () =>
-      console.log(`🚀 Server running on port ${PORT}`)
-    );
+    server.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server running on port ${PORT}`));
   })
-  .catch((err) => console.error("MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err.message));
