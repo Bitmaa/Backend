@@ -24,17 +24,24 @@ import { createAdapter } from "@socket.io/redis-adapter";
 dotenv.config();
 const app = express();
 
-// -------------------- Middlewares ------------->
+// Middlewares
 app.use(helmet());
 
-// ✅ Fix CORS for frontend
+// ✅ Fix CORS for frontend and local dev
 app.use(cors({
-  origin: "http://localhost:3000", // replace with your frontend URL
+  origin: [
+    "http://localhost:3000",                       // for local dev
+    "https://vibra-kzox.onrender.com",            // your deployed frontend
+  ],
   credentials: true,
 }));
 
 app.use(express.json());
 app.use(compression());
+
+// Your routes come after this
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 
 // Global API rate limiter
 const apiLimiter = rateLimit({
